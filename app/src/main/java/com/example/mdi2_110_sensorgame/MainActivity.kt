@@ -96,28 +96,51 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
         handler.post(loopRunnable!!)
     }
 
-
-    private fun moveBallWithGyro() {   // Step 7 stub
+    private fun moveBallWithGyro() {
 
         if (!hasGyroscope) return
 
-        // TODO: update ballX using gyroY and BASE_SPEED, coerceIn to screen width
+        // Move horizontally (left/right tilt)
+        ballX += gyroY * BASE_SPEED
+        ballX = ballX.coerceIn(
+            0f,
+            (gameArea.width - ballPx).toFloat()
+        )
 
+        // Move vertically (forward/back tilt)
+        ballY += gyroX * BASE_SPEED
+        ballY = ballY.coerceIn(
+            0f,
+            (gameArea.height - ballPx).toFloat()
+        )
 
-        // TODO: update ballY using gyroX and BASE_SPEED, coerceIn to screen height
-
-
-        // TODO: apply updated positions to ball.translationX and ball.translationY
-
+        // Update ball position
+        ball.translationX = ballX
+        ball.translationY = ballY
     }
 
+    override fun onSensorChanged(event: SensorEvent) {
 
-    override fun onSensorChanged(event: SensorEvent) {   // Step 7 stub
+        when (event.sensor.type) {
 
+            Sensor.TYPE_GYROSCOPE -> {
 
-        // TODO: when (event.sensor.type) { Sensor.TYPE_GYROSCOPE -> { read values[0] and [1] } }
+                // Rotation around X axis
+                gyroX = event.values[0]
 
+                // Rotation around Y axis
+                gyroY = event.values[1]
+
+                // Optional: display sensor values
+                tvGps.text = String.format(
+                    "Gyro\nX: %.2f\nY: %.2f",
+                    gyroX,
+                    gyroY
+                )
+            }
+        }
     }
+
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}   // Step 7
 
     private fun setupTestControls() {   // UNCHANGED from skeleton
