@@ -50,6 +50,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
 
     private val stars = mutableListOf<View>()
     private var starPx = 0
+    private var score = 0
 
     // Update game loop
     companion object {   // Step 2
@@ -108,7 +109,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
         ball.translationY = ballY
 
         applyBallColor()
-        tvScore.text = "Score: 0"
+        score = 0
+        tvScore.text = "Score: $score"
         spawnStars(w, h)
         loopRunnable?.let { handler.removeCallbacks(it) }
         loopRunnable = object : Runnable {
@@ -141,6 +143,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
         // Update ball position
         ball.translationX = ballX
         ball.translationY = ballY
+
+        // Review collisions
+        checkStarCollisions()
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -164,8 +169,26 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
             }
 
             Sensor.TYPE_ACCELEROMETER -> {
-                // Todo: calculate net acceleration above gravity
-                // Todo: if shake detected and cooldown passed call onShakeDetected()
+                val ax = event.values[0]
+                val ay = event.values[1]
+                val az = event.values[2]
+
+                // Magnitude of acceleration
+                val acceleration = Math.sqrt(
+                    (ax * ax + ay * ay + az * az).toDouble()
+                ).toFloat()
+
+                // Remove approximately the gravity (9.8 m/s²)
+                val netAcceleration = kotlin.math.abs(acceleration - SensorManager.GRAVITY_EARTH)
+
+                val now = System.currentTimeMillis()
+
+                if (netAcceleration > SHAKE_THRESHOLD &&
+                    now - lastShakeTime > SHAKE_COOLDOWN) {
+
+                    lastShakeTime = now
+                    onShakeDetected()
+                }
             }
         }
     }
@@ -173,11 +196,22 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}   // Step 7
 
     private fun onShakeDetected() {
-        // Todo: advance colorIndex and call applyBallColor()
-        // Show a message or trigger another action
-        // ax, ay, az: set event values 0, 1, 2
-        // Subtract gravity to get only the "extra force"
-        // Compare against threshold and enforce cooldown
+        colorIndex++
+
+        if (colorIndex >= ballColors.size) {
+            colorIndex = 0
+        }
+
+        applyBallColor()
+
+        // colorIndex = (colorIndex + 1) % ballColors.size
+        // applyBallColor()
+
+        Toast.makeText(
+            this,
+            "Color change!",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun spawnStars(areaW: Int, areaH: Int) {
@@ -217,7 +251,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
         for (star in collected) {
             gameArea.removeView(star)
             stars.remove(star)
-            Toast.makeText(this, "Star collected!", Toast.LENGTH_SHORT).show()
+
+            score++
+            tvScore.text = "Score: $score"
+
+            Toast.makeText(
+                this,
+                "⭐ Star collected!",
+                Toast.LENGTH_SHORT
+            ).show()
         }
 
         if (stars.isEmpty()) { spawnStars(gameArea.width, gameArea.height) }
@@ -239,6 +281,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
                     ballY = (event.y - ballPx / 2f).coerceIn(0f, (gameArea.height - ballPx).toFloat())
                     ball.translationX = ballX
                     ball.translationY = ballY
+                    checkStarCollisions()
                 }
             }
             true
