@@ -2,6 +2,7 @@ package com.example.mdi2_110_sensorgame
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.drawable.GradientDrawable
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -38,8 +39,24 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
     private val handler = Handler(Looper.getMainLooper())
     private var loopRunnable: Runnable? = null
 
+    private var accelerometer: Sensor? = null
+    private var lastShakeTime = 0L
+
+    // ball color change
+    private var colorIndex = 0
+    private val ballColors = intArrayOf (
+        0xFF33B5E5.toInt(), 0xFFE533B5.toInt(), 0xFFFF8800.toInt(), 0xFF009900.toInt()
+    )
+
+    private val stars = mutableListOf<View>()
+    private var starPx = 0
+
+    // Update game loop
     companion object {   // Step 2
         private const val BASE_SPEED = 5f
+        private const val SHAKE_THRESHOLD = 12f
+        private const val SHAKE_COOLDOWN = 1500L
+        private const val STAR_COUNT = 5
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,6 +74,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
     override fun onResume() {   // Step 4
         super.onResume()
         gyroscope?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
+        accelerometer?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }
     }
 
     override fun onPause() {   // Step 4
@@ -73,6 +91,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
     private fun initSensors() {   // Step 5
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
         gyroscope     = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
         hasGyroscope  = gyroscope != null
         if (!hasGyroscope) Toast.makeText(this, "No gyroscope — use touch controls", Toast.LENGTH_LONG).show()
     }
@@ -80,12 +99,17 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
     private fun startGame() {   // Step 6 — replaces initBall()
         val w = gameArea.width; val h = gameArea.height
         if (w == 0 || h == 0) { gameArea.post { startGame() }; return }
+        val density = resources.displayMetrics.density
+        starPx = (48 * density).toInt()
         ballPx = ball.width
         ballX  = (w - ballPx) / 2f
         ballY  = (h - ballPx) / 2f
         ball.translationX = ballX
         ball.translationY = ballY
+
+        applyBallColor()
         tvScore.text = "Score: 0"
+        spawnStars(w, h)
         loopRunnable?.let { handler.removeCallbacks(it) }
         loopRunnable = object : Runnable {
             override fun run() {
@@ -138,10 +162,74 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
                     gyroY
                 )
             }
+
+            Sensor.TYPE_ACCELEROMETER -> {
+                // Todo: calculate net acceleration above gravity
+                // Todo: if shake detected and cooldown passed call onShakeDetected()
+            }
         }
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}   // Step 7
+
+    private fun onShakeDetected() {
+        // Todo: advance colorIndex and call applyBallColor()
+        // Show a message or trigger another action
+        // ax, ay, az: set event values 0, 1, 2
+        // Subtract gravity to get only the "extra force"
+        // Compare against threshold and enforce cooldown
+    }
+
+    private fun spawnStars(areaW: Int, areaH: Int) {
+        stars.forEach { gameArea.removeView(it) }
+        stars.clear()
+
+        val bottomMarginPx = (120 * resources.displayMetrics.density).toInt()
+        val safeH = (areaH - bottomMarginPx).coerceAtLeast(starPx * 2)
+
+        repeat(STAR_COUNT) {
+            val star = View(this).apply {
+                layoutParams = FrameLayout.LayoutParams(starPx, starPx)
+                setBackgroundResource(R.drawable.star_shape)
+
+                translationX = (Math.random() * (areaW - starPx)).toFloat()
+                translationY = (Math.random() * (safeH - starPx)).toFloat()
+            }
+            gameArea.addView(star)
+            stars.add(star)
+        }
+    }
+
+    private fun checkStarCollisions() {
+        val ballRight = ballX + ballPx
+        val ballBottom = ballY + ballPx
+        val collected = mutableListOf<View>()
+
+        for (star in stars) {
+            val sx = star.translationX
+            val sy = star.translationY
+
+            if (ballX < sx + starPx && ballRight > sx && ballY < sy + starPx && ballBottom > sy) {
+                collected.add(star)
+            }
+        }
+
+        for (star in collected) {
+            gameArea.removeView(star)
+            stars.remove(star)
+            Toast.makeText(this, "Star collected!", Toast.LENGTH_SHORT).show()
+        }
+
+        if (stars.isEmpty()) { spawnStars(gameArea.width, gameArea.height) }
+    }
+
+    private fun applyBallColor() {
+        ball.background = GradientDrawable().apply() {
+            shape = GradientDrawable.OVAL
+            setColor(ballColors[colorIndex])
+        }
+
+    }
 
     private fun setupTestControls() {   // UNCHANGED from skeleton
         gameArea.setOnTouchListener { _, event ->
