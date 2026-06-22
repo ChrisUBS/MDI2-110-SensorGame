@@ -19,7 +19,6 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import kotlin.math.sqrt
 import android.location.Location
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -40,6 +39,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
     private var ballY = 0f
     private var ballPx = 0
     private lateinit var tvGps: TextView
+    private lateinit var tvGyro: TextView
     private lateinit var tvScore: TextView
 
     // ── Added in Step 2 ────────────────────────────────────────────────────
@@ -84,9 +84,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         gameArea = findViewById(R.id.gameArea)
-        ball     = findViewById(R.id.ball)
-        tvGps    = findViewById(R.id.tvGps)
-        tvScore  = findViewById(R.id.tvScore)
+        ball = findViewById(R.id.ball)
+        tvGps = findViewById(R.id.tvGps)
+        tvGyro = findViewById(R.id.tvGyro)
+        tvScore = findViewById(R.id.tvScore)
         initSensors()          // Step 3: new line
         setupLocation()
         setupTestControls()
@@ -103,7 +104,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
         super.onPause()
         sensorManager.unregisterListener(this)
         loopRunnable?.let { handler.removeCallbacks(it) }
-        if (::fusedLocation.isInitialized) fusedLocation.removeLocationUpdates { locationCallback }
+        if (::fusedLocation.isInitialized) fusedLocation.removeLocationUpdates(locationCallback)
     }
 
     override fun onDestroy() {   // Step 4
@@ -182,9 +183,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
                 // Rotation around Y axis
                 gyroY = event.values[1]
 
-                // Optional: display sensor values
-                tvGps.text = String.format(
-                    "Gyro\nX: %.2f\nY: %.2f",
+                // Display sensor values
+                tvGyro.text = String.format(
+                    "Gyroscope\nX: %.2f\nY: %.2f",
                     gyroX,
                     gyroY
                 )
@@ -350,14 +351,34 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
         }
     }
 
-    // NEW LOCATION ASSIGNMENT
+    // Location Updates
     private fun onNewLocation(location: Location) {
-        // Assignment 3 requires: display current coordinates on screen
-        tvGps.text = "lat: ${"%.5f".format(location.latitude)}," +
-                "lon: ${"%.5f".format(location.longitude)}"
-        // TODO: compare against lastLocation to see how far the player has moved
-        // TODO: if dist? REWARD_DISTANCE_M -> update lastLocation, show reward message
-        // TODO: if lastLocation is null (first fix) -> just store it as the starting point
+        tvGps.text = String.format(
+            "GPS\nLat: %.5f\nLon: %.5f",
+            location.latitude,
+            location.longitude
+        )
+
+        if (lastLocation == null) {
+            lastLocation = location
+            return
+        }
+
+        val distance = lastLocation!!.distanceTo(location)
+
+        if (distance >= REWARD_DISTANCE_M) {
+
+            score += 5
+            tvScore.text = "Score: $score"
+
+            Toast.makeText(
+                this,
+                "🎉 Reward! You moved +10 meters!",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            lastLocation = location
+        }
     }
 
     private fun setupTestControls() {   // UNCHANGED from skeleton
