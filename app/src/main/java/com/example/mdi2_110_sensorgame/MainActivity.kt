@@ -28,6 +28,7 @@ import com.google.android.gms.location.Priority
 import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.location.LocationRequest
+import androidx.appcompat.app.AlertDialog
 
 @SuppressLint("SetTextI18n", "ClickableViewAccessibility")
 class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
@@ -63,12 +64,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
     // Stars
     private val stars = mutableListOf<View>()
     private var starPx = 0
-    private var score = 0
 
     // GPS/Location
     private lateinit var fusedLocation: FusedLocationProviderClient
     private var lastLocation: Location? = null
     private lateinit var locationCallback: LocationCallback
+
+    // Score System
+    private var score = 0
+    private var gameOver = false
 
     // Update game loop
     companion object {   // Step 2
@@ -78,6 +82,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
         private const val STAR_COUNT = 5
         private const val REWARD_DISTANCE_M = 10f // Meters moved before reward triggers
         private const val LOCATION_PERM_CODE = 100
+        private const val WIN_SCORE = 50
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -132,9 +137,25 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
         ball.translationY = ballY
 
         applyBallColor()
+
+        // Reset game state
         score = 0
+        gameOver = false
+        colorIndex = 0
+        gyroX = 0f
+        gyroY = 0f
         tvScore.text = "Score: $score"
+
+        // Remove stars from the game area
+        stars.forEach {
+            gameArea.removeView(it)
+        }
+        stars.clear()
+
+        // Spawn new stars
         spawnStars(w, h)
+
+        // Update game loop
         loopRunnable?.let { handler.removeCallbacks(it) }
         loopRunnable = object : Runnable {
             override fun run() {
@@ -143,6 +164,41 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
             }
         }
         handler.post(loopRunnable!!)
+    }
+
+    private fun addScore(points: Int) {
+        score += points
+        tvScore.text = "Score: $score"
+        checkWin()
+    }
+
+    private fun restartGame() {
+        startGame()
+    }
+
+    // Final Report
+    private fun checkWin() {
+        if (gameOver) return
+
+        if (score < WIN_SCORE) return
+
+        gameOver = true
+
+        loopRunnable?.let {
+            handler.removeCallbacks(it)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("🎉 You Win!")
+            .setMessage("Final Score: $score")
+            .setCancelable(false)
+            .setPositiveButton("Play Again") { _, _ ->
+                restartGame()
+            }
+            .setNegativeButton("Exit") { _, _ ->
+                finish()
+            }
+            .show()
     }
 
     private fun moveBallWithGyro() {
@@ -219,22 +275,23 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}   // Step 7
 
     private fun onShakeDetected() {
-        colorIndex++
+        // colorIndex++
 
-        if (colorIndex >= ballColors.size) {
-            colorIndex = 0
-        }
+//        if (colorIndex >= ballColors.size) {
+//            colorIndex = 0
+//        }
 
-        applyBallColor()
-
-        // colorIndex = (colorIndex + 1) % ballColors.size
         // applyBallColor()
+
+         colorIndex = (colorIndex + 1) % ballColors.size
+         applyBallColor()
 
         Toast.makeText(
             this,
             "Color change!",
             Toast.LENGTH_SHORT
         ).show()
+        addScore(2)
     }
 
     private fun spawnStars(areaW: Int, areaH: Int) {
@@ -275,8 +332,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
             gameArea.removeView(star)
             stars.remove(star)
 
-            score++
-            tvScore.text = "Score: $score"
+            addScore(1)
 
             Toast.makeText(
                 this,
@@ -368,8 +424,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
 
         if (distance >= REWARD_DISTANCE_M) {
 
-            score += 5
-            tvScore.text = "Score: $score"
+            addScore(5)
 
             Toast.makeText(
                 this,
@@ -404,9 +459,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {   // Step 1
                 latitude = 34.0522
                 longitude = -118.2437
             }
-            val current = Location("text").apply {
-                latitude = 34.0523
-                longitude = -118.2437
+            val current = Location("test").apply {
+                latitude = base.latitude + 0.0001
+                longitude = base.longitude
             }
             lastLocation = base
             onNewLocation(current)
